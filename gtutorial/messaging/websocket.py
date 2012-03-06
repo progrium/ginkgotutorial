@@ -8,7 +8,7 @@ from ws4py.server.geventserver import WebSocketServer
 
 logger = logging.getLogger(__name__)
 
-class WebSocketInterface(Service):
+class WebSocketStreamer(Service):
     address = Setting('websocket_bind', default=('0.0.0.0', 7070))
 
     def __init__(self, hub):

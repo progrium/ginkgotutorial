@@ -5,17 +5,17 @@ import gevent
 from gservice.core import Service, autospawn
 from gservice.config import Setting
 
-from .client.numbers import NumberClient
-from .server.pubsub import MessageHub
-from .server.websocket import WebSocketInterface
+from ..numbers import NumberClient
+from ..messaging import MessageHub
+from ..messaging.websocket import WebSocketStreamer
 
 logger = logging.getLogger(__name__)
 
-class NumberWebBridge(Service):
+class NumberGateway(Service):
     def __init__(self):
         self.hub = MessageHub()
         self.client = NumberClient(('127.0.0.1', 7776))
-        self.ws = WebSocketInterface(self.hub)
+        self.ws = WebSocketStreamer(self.hub)
 
         self.add_service(self.hub)
         self.add_service(self.client)

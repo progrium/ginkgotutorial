@@ -1,4 +1,4 @@
-from gtutorial.client.numbers import NumberClient
+from gtutorial.numbers import NumberClient
 
 try:
     client = NumberClient(('127.0.0.1', 7776))
