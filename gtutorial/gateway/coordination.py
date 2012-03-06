@@ -47,3 +47,6 @@ class Leadership(Service):
             if leader is None:
                 self._next_leader()
 
+
+class Announcer(Service):
+    pass
