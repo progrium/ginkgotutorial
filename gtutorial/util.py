@@ -17,7 +17,7 @@ class Observable(object):
             if hasattr(observer, '__call__'):
                 observer(*args, **kwargs)
 
-class ObservableSet(object):
+class ObservableSet(Observable):
     def __init__(self):
         super(ObservableSet, self).__init__()
         self._set = set()
@@ -43,4 +43,7 @@ class ObservableSet(object):
 
     def __iter__(self):
         return self._set.__iter__()
+
+    def __repr__(self):
+        return str(self._set)
 

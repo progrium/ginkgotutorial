@@ -1,3 +1,4 @@
+import logging
 import time
 
 import gevent
@@ -5,21 +6,24 @@ from gevent import Timeout
 from gevent.event import Event
 from gevent_zeromq import zmq
 
-from gservice.core import Service
+from gservice.core import Service, autospawn
 from gservice.config import Setting
 
+from .util import ObservableSet
+
+logger = logging.getLogger(__name__)
 
 class ClusterCoordinator(Service):
     updates_port = Setting('cluster_updates_port', default=4440)
     heartbeat_port = Setting('cluster_heartbeat_port', default=4441)
     greeter_port = Setting('cluster_greeter_port', default=4442)
-    heartbeat_interval = Setting('cluster_heartbeat_interval_secs', default=5)
+    heartbeat_interval = Setting('cluster_heartbeat_interval_secs', default=2)
 
     def __init__(self, identity, leader=None, cluster=None, zmq_=None):
         self._zmq = zmq_ or zmq.Context()
+        self._cluster = cluster or ObservableSet()
         self._leader = leader or identity
         self._identity = identity
-        self._cluster = cluster
         self._promoted = Event()
 
         self._server = PeerServer(self)
@@ -28,17 +32,22 @@ class ClusterCoordinator(Service):
         self._greeter = self._zmq.socket(zmq.REP)
 
         self.add_service(self._server)
-        self.add_service(self._client)
+
+        if self.is_leader:
+            self._promoted.set()
+        else:
+            self.add_service(self._client)
 
     @property
     def is_leader(self):
-        return self._identity is self._leader
+        return self._identity == self._leader
 
     def wait_for_promotion(self):
         self._promoted.wait()
 
     def do_start(self):
-        self._greeter.bind("tcp://0.0.0.0:{}".format(self.greeter_port))
+        self._cluster.add(self._identity)
+        self._greeter.bind("tcp://{}:{}".format(self._identity, self.greeter_port))
         self._greet()
 
     @autospawn
@@ -48,20 +57,23 @@ class ClusterCoordinator(Service):
             if self.is_leader:
                 self._greeter.send_multipart(['WELCOME', ''])
             else:
-                response = self.scout(self._leader)
+                response = self.scout(self._leader, 1)
                 if len(response):
+                    logger.debug("A follower is redirected to {}.".format(self._leader))
                     self._greeter.send_multipart(['REDIRECT', self._leader])
                 else:
+                    logger.debug("A follower triggers new leader election.")
                     self._client._next_leader()
                     self._greeter.send_multipart(['RETRY', ''])
 
-    def scout(self, leader):
+    def scout(self, leader, timeout=2):
         scout = self._zmq.socket(zmq.REQ)
         scout.connect("tcp://{}:{}".format(leader, self.greeter_port))
         scout.send('HELLO')
-        with Timeout(2,	False):
+        response = []
+        with Timeout(timeout, False):
             response = scout.recv_multipart()
-        scount.close()
+        scout.close()
         return response
 
 class PeerClient(Service):
@@ -75,6 +87,7 @@ class PeerClient(Service):
         self._follow_leader()
         self._send_heartbeats()
         self._listen_for_updates()
+        self._poll_leader()
 
     def _follow_leader(self):
         self.c._leader = self._confirm_leader(self.c._leader)
@@ -99,18 +112,22 @@ class PeerClient(Service):
         if len(response):
             reply, redirect_address = response
             if reply == 'WELCOME':
+                logger.debug("Leader {} confirmed with warm welcome.".format(leader))
                 return leader
             elif reply == 'REDIRECT':
+                logger.debug("Leader {} is not actual leader, redirecting...".format(leader))
                 return self._confirm_leader(redirect_address)
             elif reply == 'RETRY':
+                logger.debug("Leader {} is confused, try again...".format(leader))
                 return self._confirm_leader(leader)
         raise Exception("Unable to confirm leader")
 
     def _next_leader(self):
         self._following.clear()
         self.c._cluster.remove(self.c._leader)
-        candidates = ordered(list(self.c._cluster))
+        candidates = sorted(list(self.c._cluster))
         self.c._leader = candidates[0]
+        logger.debug("A new leader is decided: {}".format(candidates[0]))
         if self.c.is_leader:
             self.c._promoted.set()
         else:
@@ -127,19 +144,25 @@ class PeerClient(Service):
     def _listen_for_updates(self):
         while True:
             self._following.wait()
-            with Timeout(self.c.heartbeat_interval * 2, False) as timeout:
-                cluster = self._listener.recv_multipart()
-            if cluster is None:
-                # Leader heartbeat timeout, promote new leader
+            cluster = self._listener.recv_multipart()
+            logger.debug("Got cluster update")
+            self.c._cluster.replace(set(cluster))
+
+    @autospawn
+    def _poll_leader(self):
+        while True:
+            gevent.sleep(self.c.heartbeat_interval)
+            response = self.c.scout(self.c._leader)
+            if not response:
                 self._next_leader()
-            else:
-                self._cluster.replace(set(cluster))
+
 
 class PeerServer(Service):
     def __init__(self, coordinator):
         self.c = coordinator
         self._updates = self.c._zmq.socket(zmq.PUB)
         self._heartbeats = self.c._zmq.socket(zmq.PULL)
+        self._latest_heartbeats = {}
 
         def updater(add=None, remove=None):
             if add: self._broadcast_cluster()
@@ -147,33 +170,42 @@ class PeerServer(Service):
 
 
     def do_start(self):
-        self._updates.bind("tcp://0.0.0.0:{}".format(self.c.updates_port))
-        self._heartbeats.bind("tcp://0.0.0.0:{}".format(self.c.heartbeat_port))
+        self._updates.bind("tcp://{}:{}".format(self.c._identity, self.c.updates_port))
+        self._heartbeats.bind("tcp://{}:{}".format(self.c._identity, self.c.heartbeat_port))
         self._send_heartbeats()
         self._receive_heartbeats()
+        self._timeout_peers()
 
     def _broadcast_cluster(self):
-        self._updates.send_multipart(list(self.c._cluster))
+        self._updates.send_multipart([self.c._identity] + list(self.c._cluster))
 
     @autospawn
     def _send_heartbeats(self):
         while True:
             self.c.wait_for_promotion()
+            logger.debug("Broadcasting cluster.")
             self._broadcast_cluster()
             gevent.sleep(self.c.heartbeat_interval)
 
     @autospawn
     def _receive_heartbeats(self):
-        last_heartbeats = {}
         while True:
             self.c.wait_for_promotion()
             follower = self._heartbeats.recv()
-            if follower in last_heartbeats:
-                time_since_last = time.time() - last_heartbeats[follower]
-                if time_since_last > self.c.heartbeat_interval * 2:
-                    self.c._cluster.remove(follower)
-                    del last_heartbeats[follower]
-                    continue
             self.c._cluster.add(follower) # ignored if already added
-            last_heartbeat[follower] = time.time()
+            self._latest_heartbeats[follower] = time.time()
+
+    @autospawn
+    def _timeout_peers(self):
+        while True:
+            to_remove = []
+            for follower in self._latest_heartbeats:
+                time_since_last = time.time() - self._latest_heartbeats[follower]
+                if time_since_last > self.c.heartbeat_interval * 2:
+                    to_remove.append(follower)
+            for follower in to_remove:
+                self.c._cluster.remove(follower)
+                del self._latest_heartbeats[follower]
+            gevent.sleep(self.c.heartbeat_interval)
+
 

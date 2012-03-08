@@ -60,7 +60,7 @@ class Announcer(Service):
     @autospawn
     def _announce(self):
         while True:
-            cluster_snapshot = ordered(list(self.cluster))
+            cluster_snapshot = sorted(list(self.cluster))
             identity_index = cluster_snapshot.index(self.identity)
             announcer_index = int(time.time()) % len(cluster_snapshot)
             if announcer_index is indetity_index:
