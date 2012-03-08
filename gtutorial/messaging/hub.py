@@ -4,22 +4,31 @@ from ginkgo.core import Service, autospawn
 from .http import HttpStreamer
 from .http import HttpTailViewer
 from .websocket import WebSocketStreamer
-from .backend import MessageBackend
+
+class Subscription(gevent.queue.Queue):
+    def __init__(self, channel):
+        super(Subscription, self).__init__(maxsize=64)
+        self.channel = channel
+
+    def cancel(self):
+        self.channel = None
 
 class MessageHub(Service):
-    def __init__(self, cluster=None, bind_interface=None):
-        self.bind_interface = bind_interface or '0.0.0.0'
-
-        self.backend = MessageBackend(cluster, bind_interface)
-        self.add_service(self.backend)
+    def __init__(self):
+        self.subscriptions = {}
 
         self.add_service(HttpStreamer(self))
         self.add_service(HttpTailViewer(self))
         self.add_service(WebSocketStreamer(self))
 
     def publish(self, channel, message):
-        self.backend.publish(channel, message)
+        for subscription in self.subscriptions.get(channel, []):
+            subscription.put(message)
 
     def subscribe(self, channel):
-        return self.backend.subscribe(channel)
+        if channel not in self.subscriptions:
+            self.subscriptions[channel] = []
+        subscription = Subscription(channel)
+        self.subscriptions[channel].append(subscription)
+        return subscription
 

@@ -15,7 +15,7 @@ class WebSocketStreamer(Service):
         self.hub = hub
 
         self.add_service(
-            WebSocketServer((self.hub.bind_interface, self.port), self.handle))
+            WebSocketServer(('0.0.0.0', self.port), self.handle))
 
     def handle(self, websocket, environ):
         channel = environ.get('PATH_INFO')

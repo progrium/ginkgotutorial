@@ -23,7 +23,7 @@ class HttpStreamer(Service):
 
         self.add_service(
             gevent.pywsgi.WSGIServer(
-                listener=(self.hub.bind_interface, self.port),
+                listener=('0.0.0.0', self.port),
                 application=self.handle,
                 spawn=self.spawn,
                 log=None))
@@ -84,7 +84,7 @@ class HttpTailViewer(Service):
 
         self.add_service(
             gevent.pywsgi.WSGIServer(
-                listener=(self.hub.bind_interface, self.port),
+                listener=('0.0.0.0', self.port),
                 application=self.handle,
                 spawn=self.spawn,
                 log=None))
