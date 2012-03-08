@@ -65,9 +65,8 @@ class ClusterCoordinator(Service):
         return reply
 
 class PeerClient(Service):
-    def __init__(self, coordinator, _zmq):
+    def __init__(self, coordinator):
         self.c = coordinator
-        self._zmq = _zmq
         self._following = Event()
         self._listener = None
         self._heartbeater = None
@@ -82,14 +81,14 @@ class PeerClient(Service):
 
         if self._listener is not None:
             self._listener.close()
-        self._listener = self._zmq.socket(zmq.SUB)
+        self._listener = self.c._zmq.socket(zmq.SUB)
         self._listener.setsockopt(zmq.SUBSCRIBE, '')
         self._listener.connect("tcp://{}:{}".format(self.c._leader,
             self.c.updates_port))
 
         if self._heartbeater is not None:
             self._heartbeater.close()
-        self._heartbeater = self._zmq.socket(zmq.PUSH)
+        self._heartbeater = self.c._zmq.socket(zmq.PUSH)
         self._heartbeater.connect("tcp://{}:{}".format(self.c._leader,
             self.c.heartbeat_port))
 
@@ -137,10 +136,10 @@ class PeerClient(Service):
                 self._cluster.replace(set(cluster))
 
 class PeerServer(Service):
-    def __init__(self, coordinator, _zmq):
+    def __init__(self, coordinator):
         self.c = coordinator
-        self._updates = _zmq.socket(zmq.PUB)
-        self._heartbeats = _zmq.socket(zmq.PULL)
+        self._updates = self.c._zmq.socket(zmq.PUB)
+        self._heartbeats = self.c._zmq.socket(zmq.PULL)
 
         def updater(add=None, remove=None):
             if add: self._broadcast_cluster()
