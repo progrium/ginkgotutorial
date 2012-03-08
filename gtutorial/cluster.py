@@ -42,6 +42,14 @@ class ClusterCoordinator(Service):
     def wait_for_promotion(self):
         self.promoted.wait()
 
+    @property
+    def leader(self):
+        return self.client.leader
+
+    @property
+    def identity(self):
+        return self.client.identity
+
 class PeerServer(Service):
     def __init__(self, coordinator, identity):
         self.c = coordinator

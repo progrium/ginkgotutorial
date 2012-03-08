@@ -1,6 +1,7 @@
 import time
 import gevent
 from gevent import Timeout
+from gevent.event import Event
 from gevent_zeromq import zmq
 
 from ginkgo.core import Service, autospawn
@@ -10,9 +11,11 @@ class Leadership(Service):
     port = Setting('leader_port', default=12345)
     heartbeat_interval = Setting('leader_heartbeat_interval_secs', default=3)
 
-    def __init__(self, identity, cluster, zmq_):
-        self._identity = identity
-        self._leader = None
+    def __init__(self, identity, cluster, zmq_=None):
+        zmq_ = zmq_ or zmq.Context()
+        self.identity = identity
+        self.leader = None
+        self.set = cluster
         self._candidates = sorted(list(cluster))
         self._promoted = Event()
         self._broadcaster = zmq_.socket(zmq.PUB)
@@ -21,34 +24,35 @@ class Leadership(Service):
 
     @property
     def is_leader(self):
-        return self._identity == self._leader
+        return self.identity == self.leader
 
     def wait_for_promotion(self):
         self._promoted.wait()
 
     def do_start(self):
-        self._broadcaster.bind("tcp://{}:{}".format(self._identity, self.port))
+        self._broadcaster.bind("tcp://{}:{}".format(self.identity, self.port))
         self._broadcast_when_promoted()
         self._listen_for_heartbeats()
         self._next_leader()
 
     def _next_leader(self):
-        self._leader = self._candidates.pop(0)
+        self.leader = self._candidates.pop(0)
         if self.is_leader:
             self._promoted.set()
         else:
-            self._listener.connect("tcp://{}:{}".format(self._leader, self.port))
+            self._listener.connect("tcp://{}:{}".format(self.leader, self.port))
 
     @autospawn
     def _broadcast_when_promoted(self):
         self.wait_for_promotion()
         while self.is_leader:
-            self._broadcaster.send(self._identity)
+            self._broadcaster.send(self.identity)
             gevent.sleep(self.heartbeat_interval)
 
     @autospawn
     def _listen_for_heartbeats(self):
         while not self.is_leader:
+            leader = None
             with Timeout(self.heartbeat_interval * 2, False) as timeout:
                 leader = self._listener.recv()
             if leader is None:
@@ -56,10 +60,9 @@ class Leadership(Service):
 
 
 class Announcer(Service):
-    def __init__(self, hub, cluster, identity):
+    def __init__(self, hub, cluster):
         self.hub = hub
         self.cluster = cluster
-        self.identity = identity
 
     def do_start(self):
         self._announce()
@@ -67,11 +70,15 @@ class Announcer(Service):
     @autospawn
     def _announce(self):
         while True:
-            if self.identity in self.cluster:
-                cluster_snapshot = sorted(list(self.cluster))
-                identity_index = cluster_snapshot.index(self.identity)
+            if self.cluster.identity in self.cluster.set:
+                cluster_snapshot = sorted(list(self.cluster.set))
+                identity_index = cluster_snapshot.index(self.cluster.identity)
                 announcer_index = int(time.time()) % len(cluster_snapshot)
                 if announcer_index is identity_index:
-                    self.hub.publish("/announce", self.identity)
+                    if self.cluster.is_leader:
+                        announcement = "{}*".format(self.cluster.identity)
+                    else:
+                        announcement = self.cluster.identity
+                    self.hub.publish("/announce", announcement)
             gevent.sleep(1)
 
