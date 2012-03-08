@@ -14,12 +14,20 @@ from ginkgo.config import Setting
 
 logger = logging.getLogger(__name__)
 
+class Subscription(gevent.queue.Queue):
+    def __init__(self, channel):
+        super(Subscription, self).__init__(maxsize=64)
+        self.channel = channel
+
+    def cancel(self):
+        self.channel = None
+
 class HttpStreamer(Service):
     port = Setting('pubsub_port', default=8088)
     keepalive_interval = Setting('keepalive_interval', default=5)
 
-    def __init__(self, hub):
-        self.hub = hub
+    def __init__(self):
+        self.subscriptions = {}
 
         self.add_service(
             gevent.pywsgi.WSGIServer(
@@ -42,8 +50,10 @@ class HttpStreamer(Service):
 
     def handle_publish(self, env, start_response):
         request = webob.Request(env)
+        channel = request.path
 
-        self.hub.publish(request.path, str(request.body))
+        for subscription in self.subscriptions.get(channel, []):
+            subscription.put(str(request.body))
 
         start_response('200 OK', [
             ('Content-Type', 'text/plain')])
@@ -51,7 +61,13 @@ class HttpStreamer(Service):
 
     def handle_subscribe(self, env, start_response):
         request = webob.Request(env)
-        subscription = self.hub.subscribe(request.path)
+        channel = request.path
+
+        if channel not in self.subscriptions:
+            self.subscriptions[channel] = []
+        subscription = Subscription(channel)
+        self.subscriptions[channel].append(subscription)
+
         self.keepalive(subscription)
         logger.info("New subscriber (stream)")
 
@@ -75,40 +91,4 @@ class HttpStreamer(Service):
             subscription.put(None)
             gevent.sleep(self.keepalive_interval)
 
-
-class HttpTailViewer(Service):
-    port = Setting('tail_port', default=8089)
-
-    def __init__(self, hub):
-        self.hub = hub
-
-        self.add_service(
-            gevent.pywsgi.WSGIServer(
-                listener=('0.0.0.0', self.port),
-                application=self.handle,
-                spawn=self.spawn,
-                log=None))
-
-        # This isn't the best we can do, but it makes things better
-        self.catch(socket.error, lambda e,g: None)
-
-    def handle(self, env, start_response):
-        request = webob.Request(env)
-        subscription = self.hub.subscribe(request.path)
-        logger.info("New subscriber (tail view)")
-
-        boundary = str(random.random())
-        start_response('200 OK', [
-            ('Content-Type', 'multipart/x-mixed-replace; boundary={}'.format(boundary)),
-            ('Connection', 'keep-alive'),
-            ('Cache-Control', 'no-cache, must-revalidate'),
-            ('Expires', 'Tue, 11 Sep 1985 19:00:00 GMT'),])
-        yield '--{}\n'.format(boundary)
-        for msg in subscription:
-            if msg is not None:
-                yield '\n'.join([
-                    'Content-Type: text/plain',
-                    'Content-Length: {}'.format(len(msg)),
-                    '\n{}'.format(msg),
-                    '--{}\n'.format(boundary)])
 
