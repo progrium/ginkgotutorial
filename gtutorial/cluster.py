@@ -62,7 +62,7 @@ class ClusterCoordinator(Service):
         with Timeout(2,	False):
             response = scout.recv_multipart()
         scount.close()
-        return reply
+        return response
 
 class PeerClient(Service):
     def __init__(self, coordinator):
