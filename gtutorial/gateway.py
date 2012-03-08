@@ -2,8 +2,8 @@ import logging
 
 import gevent
 
-from gservice.core import Service, autospawn
-from gservice.config import Setting
+from ginkgo.core import Service, autospawn
+from ginkgo.config import Setting
 
 from ..numbers import NumberClient
 from ..messaging import MessageHub

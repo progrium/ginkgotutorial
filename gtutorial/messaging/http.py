@@ -9,8 +9,8 @@ import gevent.pywsgi
 import gevent.queue
 import webob
 
-from gservice.core import Service, autospawn
-from gservice.config import Setting
+from ginkgo.core import Service, autospawn
+from ginkgo.config import Setting
 
 logger = logging.getLogger(__name__)
 

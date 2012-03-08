@@ -5,8 +5,8 @@ def service():
         stream=sys.stdout,
         level=logging.DEBUG)
 
+    from ginkgo.core import Service
     from gtutorial.cluster import ClusterCoordinator
-    from gservice.core import Service
     from gtutorial.util import ObservableSet
 
     logger = logging.getLogger(__name__)

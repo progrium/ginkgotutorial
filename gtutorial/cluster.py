@@ -8,9 +8,9 @@ import gevent.server
 from gevent.event import Event
 from gevent_zeromq import zmq
 
-from gservice.core import Service, autospawn, NOT_READY
-from gservice.config import Setting
-from gservice import util
+from ginkgo.core import Service, autospawn, NOT_READY
+from ginkgo.config import Setting
+from ginkgo import util
 
 from .util import ObservableSet
 

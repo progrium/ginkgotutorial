@@ -1,5 +1,5 @@
 import gevent.queue
-from gservice.core import Service, autospawn
+from ginkgo.core import Service, autospawn
 
 from .http import HttpStreamer
 from .http import HttpTailViewer
@@ -9,7 +9,7 @@ from .backend import MessageBackend
 class MessageHub(Service):
     def __init__(self, cluster=None, zmq=None):
         self.backend = MessageBackend(cluster, zmq)
-        self.add_service(backend)
+        self.add_service(self.backend)
 
         self.add_service(HttpStreamer(self))
         self.add_service(HttpTailViewer(self))

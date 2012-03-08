@@ -1,15 +1,22 @@
+import time
+import gevent
+from gevent import Timeout
+from gevent_zeromq import zmq
+
+from ginkgo.core import Service, autospawn
+from ginkgo.config import Setting
 
 class Leadership(Service):
     cluster = Setting('cluster', default=[])
     port = Setting('leader_port', default=12345)
     heartbeat_interval = Setting('leader_heartbeat_interval_secs', default=5)
 
-    def __init__(self, identity, context):
+    def __init__(self, identity, zmq_):
         self._identity = identity
         self._candidates = sorted(self.cluster)
         self._promoted = Event()
-        self._broadcaster = context.socket(zmq.PUB)
-        self._listener = context.socket(zmq.SUB)
+        self._broadcaster = zmq_.socket(zmq.PUB)
+        self._listener = zmq_.socket(zmq.SUB)
         self._listener.setsockopt(zmq.SUBSCRIBE, '')
 
     @property

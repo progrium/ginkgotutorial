@@ -1,8 +1,8 @@
 import gevent
 import logging
 
-from gservice.core import Service, autospawn
-from gservice.config import Setting
+from ginkgo.core import Service, autospawn
+from ginkgo.config import Setting
 
 from ws4py.server.geventserver import WebSocketServer
 

@@ -1,8 +1,10 @@
 import gevent.queue
 import msgpack
 
-from gservice.core import Service, require_ready, autospawn
-from gservice.config import Setting
+from gevent_zeromq import zmq
+
+from ginkgo.core import Service, require_ready, autospawn
+from ginkgo.config import Setting
 
 from ..util import ObservableSet
 
@@ -20,9 +22,9 @@ class Subscription(gevent.queue.Queue):
 class MessageBackend(Service):
     port = Setting('backend_port', default=2222)
 
-    def __init__(self, cluster=None, zmq=None):
+    def __init__(self, cluster=None, zmq_=None):
         self.cluster = cluster or ObservableSet()
-        self.zmq = zmq or zmq.Context()
+        self.zmq = zmq_ or zmq.Context()
 
         self.transmitter = PeerTransmitter(self)
         self.receiver = PeerReceiver(self)
@@ -63,7 +65,7 @@ class PeerReceiver(Service):
         self.subscriptions = dict()
 
     def do_start(self):
-        self.socket.bind("tcp://0.0.0.0:{}".format(self.backend.port))
+        self.socket.bind("tcp://0.0.0.0:{}".format(self.port))
         self._listen()
 
     def subscribe(self, channel, subscriber):

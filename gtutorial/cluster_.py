@@ -6,8 +6,8 @@ from gevent import Timeout
 from gevent.event import Event
 from gevent_zeromq import zmq
 
-from gservice.core import Service, autospawn
-from gservice.config import Setting
+from ginkgo.core import Service, autospawn
+from ginkgo.config import Setting
 
 from .util import ObservableSet
 

@@ -7,8 +7,8 @@ from gevent.server import StreamServer
 from gevent.queue import Queue
 from gevent.socket import create_connection
 
-from gservice.core import Service, autospawn
-from gservice.config import Setting
+from ginkgo.core import Service, autospawn
+from ginkgo.config import Setting
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +19,15 @@ class NumberServer(Service):
     def __init__(self):
         self.add_service(
                 StreamServer(self.address, self.handle))
+
+    def do_start(self):
+        logger.info("NumberServer is starting.")
+
+    def do_stop(self):
+        logger.info("NumberServer is stopping.")
+
+    def do_reload(self):
+        logger.info("NumberServer is reloading.")
 
     def handle(self, socket, address):
         logger.debug("New connection {}".format(address))
@@ -38,9 +47,8 @@ class NumberClient(Service):
         self.socket = None
 
     def do_start(self):
-        self._connect()
+        self.spawn(self._connect)
 
-    @autospawn
     def _connect(self):
         if self.socket is not None:
             raise RuntimeError("Client is already connected")

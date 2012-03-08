@@ -18,9 +18,9 @@ class Observable(object):
                 observer(*args, **kwargs)
 
 class ObservableSet(Observable):
-    def __init__(self):
+    def __init__(self, iterable):
         super(ObservableSet, self).__init__()
-        self._set = set()
+        self._set = set(iterable)
 
     def add(self, element):
         if element not in self._set:
