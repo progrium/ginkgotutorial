@@ -8,7 +8,7 @@ from .backend import MessageBackend
 
 class MessageHub(Service):
     def __init__(self, cluster=None, bind_interface=None, zmq=None):
-        self.bind_interface = bind_interface
+        self.bind_interface = bind_interface or '0.0.0.0'
 
         self.backend = MessageBackend(cluster, bind_interface, zmq)
         self.add_service(self.backend)
