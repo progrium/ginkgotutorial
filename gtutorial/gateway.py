@@ -17,7 +17,6 @@ class NumberGateway(Service):
         self.hub = MessageHub()
         self.ws = WebSocketStreamer(self.hub)
 
-
         self.add_service(self.hub)
         self.add_service(self.ws)
         self.add_service(self.client)
