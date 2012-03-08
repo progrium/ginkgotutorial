@@ -4,7 +4,7 @@ class Leadership(Service):
     port = Setting('leader_port', default=12345)
     heartbeat_interval = Setting('leader_heartbeat_interval_secs', default=5)
 
-    def __init__(self, context, identity):
+    def __init__(self, identity, context):
         self._identity = identity
         self._candidates = sorted(self.cluster)
         self._promoted = Event()
@@ -49,4 +49,21 @@ class Leadership(Service):
 
 
 class Announcer(Service):
-    pass
+    def __init__(self, hub, cluster, identity):
+        self.hub = hub
+        self.cluster = cluster
+        self.identity = identity
+
+    def do_start(self):
+        self._announce()
+
+    @autospawn
+    def _announce(self):
+        while True:
+            cluster_snapshot = ordered(list(self.cluster))
+            identity_index = cluster_snapshot.index(self.identity)
+            announcer_index = int(time.time()) % len(cluster_snapshot)
+            if announcer_index is indetity_index:
+                self.hub.publish("/announce", self.identity)
+            gevent.sleep(1)
+
