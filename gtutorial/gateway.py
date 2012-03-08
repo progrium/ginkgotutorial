@@ -9,20 +9,17 @@ from .numbers import NumberClient
 from .messaging.hub import MessageHub
 from .coordination import Announcer
 from .coordination import Leadership
-from .cluster import ClusterCoordinator
 from .util import ObservableSet
 
 logger = logging.getLogger(__name__)
 
 class NumberGateway(Service):
     identity = Setting('identity', default='127.0.0.1')
-    leader = Setting('leader', default=None)
     cluster_ = Setting('cluster', default=['127.0.0.1'])
 
     def __init__(self):
         self.client = NumberClient(('127.0.0.1', 7776))
-        self.cluster = ClusterCoordinator(self.identity, self.leader)
-        #self.cluster = Leadership(self.identity, ObservableSet(self.cluster_))
+        self.cluster = Leadership(self.identity, ObservableSet(self.cluster_))
         self.hub = MessageHub(self.cluster.set, self.identity)
         self.announcer = Announcer(self.hub, self.cluster)
 
