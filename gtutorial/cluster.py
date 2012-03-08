@@ -29,7 +29,7 @@ class ClusterCoordinator(Service):
         leader = leader or identity
         self.server = PeerServer(self, identity)
         self.client = PeerClient(self, leader, identity)
-        self.cluster = cluster or ObservableSet()
+        self.set = cluster or ObservableSet()
         self.promoted = Event()
 
         self.add_service(self.server)
@@ -54,7 +54,7 @@ class PeerServer(Service):
 
     def do_start(self):
         if self.c.is_leader:
-            self.c.cluster.add(self.identity)
+            self.c.set.add(self.identity)
 
     def handle(self, socket, address):
         """
@@ -101,16 +101,16 @@ class PeerServer(Service):
                 lambda: shutdown(socket))
 
     def _cluster_message(self):
-        return '%s\n' % json.dumps({'cluster': list(self.c.cluster)})
+        return '%s\n' % json.dumps({'cluster': list(self.c.set)})
 
     def _update(self, add=None, remove=None):
         """ Used by leader to manage and broadcast roster """
         if add is not None:
-            self.c.cluster.add(add['host'])
+            self.c.set.add(add['host'])
             self.clients[add['host']] = add['socket']
             #logger.debug("Added to cluster: %s" % add['host'])
         if remove is not None:
-            self.c.cluster.remove(remove)
+            self.c.set.remove(remove)
             del self.clients[remove]
             #logger.debug("Removed from cluster: %s" % remove)
         for client in self.clients:
@@ -161,8 +161,8 @@ class PeerClient(Service):
                         raise NewLeader()
                     elif client_address in cluster['cluster']:
                         # Only report cluster once I'm a member
-                        self.c.cluster.replace(set(cluster['cluster']))
-            self.c.cluster.remove(self.leader)
+                        self.c.set.replace(set(cluster['cluster']))
+            self.c.set.remove(self.leader)
             self._leader_election()
         except NewLeader:
             #self.manager.trigger_callback()
@@ -178,7 +178,7 @@ class PeerClient(Service):
             lambda: socket.send('\n'))
 
     def _leader_election(self):
-        candidates = list(self.c.cluster)
+        candidates = list(self.c.set)
         candidates.sort()
         self.leader = candidates[0]
         logger.info("New leader %s:%s..." % (self.leader, self.c.port))

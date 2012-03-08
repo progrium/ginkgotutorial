@@ -7,13 +7,13 @@ from ginkgo.core import Service, autospawn
 from ginkgo.config import Setting
 
 class Leadership(Service):
-    cluster = Setting('cluster', default=[])
     port = Setting('leader_port', default=12345)
-    heartbeat_interval = Setting('leader_heartbeat_interval_secs', default=5)
+    heartbeat_interval = Setting('leader_heartbeat_interval_secs', default=3)
 
-    def __init__(self, identity, zmq_):
+    def __init__(self, identity, cluster, zmq_):
         self._identity = identity
-        self._candidates = sorted(self.cluster)
+        self._leader = None
+        self._candidates = sorted(list(cluster))
         self._promoted = Event()
         self._broadcaster = zmq_.socket(zmq.PUB)
         self._listener = zmq_.socket(zmq.SUB)
@@ -21,13 +21,13 @@ class Leadership(Service):
 
     @property
     def is_leader(self):
-        return self._identity is self._leader
+        return self._identity == self._leader
 
     def wait_for_promotion(self):
         self._promoted.wait()
 
     def do_start(self):
-        self._broadcaster.bind("tcp://0.0.0.0:{}".format(self.port))
+        self._broadcaster.bind("tcp://{}:{}".format(self._identity, self.port))
         self._broadcast_when_promoted()
         self._listen_for_heartbeats()
         self._next_leader()
@@ -67,10 +67,11 @@ class Announcer(Service):
     @autospawn
     def _announce(self):
         while True:
-            cluster_snapshot = sorted(list(self.cluster))
-            identity_index = cluster_snapshot.index(self.identity)
-            announcer_index = int(time.time()) % len(cluster_snapshot)
-            if announcer_index is indetity_index:
-                self.hub.publish("/announce", self.identity)
+            if self.identity in self.cluster:
+                cluster_snapshot = sorted(list(self.cluster))
+                identity_index = cluster_snapshot.index(self.identity)
+                announcer_index = int(time.time()) % len(cluster_snapshot)
+                if announcer_index is identity_index:
+                    self.hub.publish("/announce", self.identity)
             gevent.sleep(1)
 

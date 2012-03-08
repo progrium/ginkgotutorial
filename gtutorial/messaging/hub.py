@@ -7,8 +7,10 @@ from .websocket import WebSocketStreamer
 from .backend import MessageBackend
 
 class MessageHub(Service):
-    def __init__(self, cluster=None, zmq=None):
-        self.backend = MessageBackend(cluster, zmq)
+    def __init__(self, cluster=None, bind_interface=None, zmq=None):
+        self.bind_interface = bind_interface
+
+        self.backend = MessageBackend(cluster, bind_interface, zmq)
         self.add_service(self.backend)
 
         self.add_service(HttpStreamer(self))

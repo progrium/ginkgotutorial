@@ -22,12 +22,12 @@ class Subscription(gevent.queue.Queue):
 class MessageBackend(Service):
     port = Setting('backend_port', default=2222)
 
-    def __init__(self, cluster=None, zmq_=None):
+    def __init__(self, cluster=None, bind_interface=None, zmq_=None):
         self.cluster = cluster or ObservableSet()
         self.zmq = zmq_ or zmq.Context()
 
         self.transmitter = PeerTransmitter(self)
-        self.receiver = PeerReceiver(self)
+        self.receiver = PeerReceiver(self, bind_interface)
 
         self.add_service(self.transmitter)
         self.add_service(self.receiver)
@@ -59,13 +59,13 @@ class PeerTransmitter(Service):
         self.socket.send_multipart([str(channel).lower(), msgpack.packb(message)])
 
 class PeerReceiver(Service):
-    def __init__(self, backend):
-        self.port = backend.port
+    def __init__(self, backend, bind_interface=None):
+        self.bind_address = (bind_interface or '0.0.0.0', backend.port)
         self.socket = backend.zmq.socket(zmq.SUB)
         self.subscriptions = dict()
 
     def do_start(self):
-        self.socket.bind("tcp://0.0.0.0:{}".format(self.port))
+        self.socket.bind("tcp://{}:{}".format(*self.bind_address))
         self._listen()
 
     def subscribe(self, channel, subscriber):

@@ -15,7 +15,7 @@ from ginkgo.config import Setting
 logger = logging.getLogger(__name__)
 
 class HttpStreamer(Service):
-    address = Setting('pubsub_bind', default=('0.0.0.0', 8088))
+    port = Setting('pubsub_port', default=8088)
     keepalive_interval = Setting('keepalive_interval', default=5)
 
     def __init__(self, hub):
@@ -23,7 +23,7 @@ class HttpStreamer(Service):
 
         self.add_service(
             gevent.pywsgi.WSGIServer(
-                listener=self.address,
+                listener=(self.hub.bind_interface, self.port),
                 application=self.handle,
                 spawn=self.spawn,
                 log=None))
@@ -77,14 +77,14 @@ class HttpStreamer(Service):
 
 
 class HttpTailViewer(Service):
-    address = Setting('tail_bind', default=('0.0.0.0', 8089))
+    port = Setting('tail_port', default=8089)
 
     def __init__(self, hub):
         self.hub = hub
 
         self.add_service(
             gevent.pywsgi.WSGIServer(
-                listener=self.address,
+                listener=(self.hub.bind_interface, self.port),
                 application=self.handle,
                 spawn=self.spawn,
                 log=None))
