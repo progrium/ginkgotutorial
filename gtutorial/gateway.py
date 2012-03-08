@@ -7,19 +7,19 @@ from ginkgo.config import Setting
 
 from .numbers import NumberClient
 from .messaging.hub import MessageHub
-from .util import ObservableSet
+from .messaging.websocket import WebSocketStreamer
 
 logger = logging.getLogger(__name__)
 
 class NumberGateway(Service):
-    identity = Setting('identity', default='127.0.0.1')
-    cluster = Setting('cluster', default=['127.0.0.1'])
-
     def __init__(self):
         self.client = NumberClient(('127.0.0.1', 7776))
-        self.hub = MessageHub(ObservableSet(self.cluster), self.identity)
+        self.hub = MessageHub()
+        self.ws = WebSocketStreamer(self.hub)
+
 
         self.add_service(self.hub)
+        self.add_service(self.ws)
         self.add_service(self.client)
 
     def do_start(self):
