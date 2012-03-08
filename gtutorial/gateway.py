@@ -7,7 +7,6 @@ from ginkgo.config import Setting
 
 from .numbers import NumberClient
 from .messaging.hub import MessageHub
-from .coordination import Announcer
 from .coordination import Leadership
 from .util import ObservableSet
 
@@ -21,11 +20,9 @@ class NumberGateway(Service):
         self.client = NumberClient(('127.0.0.1', 7776))
         self.cluster = Leadership(self.identity, ObservableSet(self.cluster_))
         self.hub = MessageHub(self.cluster.set, self.identity)
-        self.announcer = Announcer(self.hub, self.cluster)
 
         self.add_service(self.cluster)
         self.add_service(self.hub)
-        self.add_service(self.announcer)
         self.add_service(self.client)
 
     def do_start(self):

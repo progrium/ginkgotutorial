@@ -59,26 +59,3 @@ class Leadership(Service):
                 self._next_leader()
 
 
-class Announcer(Service):
-    def __init__(self, hub, cluster):
-        self.hub = hub
-        self.cluster = cluster
-
-    def do_start(self):
-        self._announce()
-
-    @autospawn
-    def _announce(self):
-        while True:
-            if self.cluster.identity in self.cluster.set:
-                cluster_snapshot = sorted(list(self.cluster.set))
-                identity_index = cluster_snapshot.index(self.cluster.identity)
-                announcer_index = int(time.time()) % len(cluster_snapshot)
-                if announcer_index is identity_index:
-                    if self.cluster.is_leader:
-                        announcement = "{}*".format(self.cluster.identity)
-                    else:
-                        announcement = self.cluster.identity
-                    self.hub.publish("/announce", announcement)
-            gevent.sleep(1)
-
