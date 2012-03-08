@@ -15,17 +15,17 @@ class ClusterCoordinator(Service):
     greeter_port = Setting('cluster_greeter_port', default=4442)
     heartbeat_interval = Setting('cluster_heartbeat_interval_secs', default=5)
 
-    def __init__(self, identity, leader=None, cluster=None, _zmq=None):
-        _zmq = _zmq or zmq.Context()
+    def __init__(self, identity, leader=None, cluster=None, zmq_=None):
+        self._zmq = zmq_ or zmq.Context()
         self._leader = leader or identity
         self._identity = identity
         self._cluster = cluster
         self._promoted = Event()
 
-        self._server = PeerServer(self, _zmq)
-        self._client = PeerClient(self, _zmq)
+        self._server = PeerServer(self)
+        self._client = PeerClient(self)
 
-        self._greeter = _zmq.socket(zmq.REP)
+        self._greeter = self._zmq.socket(zmq.REP)
 
         self.add_service(self._server)
         self.add_service(self._client)
@@ -44,12 +44,25 @@ class ClusterCoordinator(Service):
     @autospawn
     def _greet(self):
         while True:
-            self._greeter.recv()
+            self._greeter.recv() # HELLO
             if self.is_leader:
                 self._greeter.send_multipart(['WELCOME', ''])
             else:
-                self._greeter.send_multipart(['REDIRECT', self._leader])
+                response = self.scout(self._leader)
+                if len(response):
+                    self._greeter.send_multipart(['REDIRECT', self._leader])
+                else:
+                    self._client._next_leader()
+                    self._greeter.send_multipart(['RETRY', ''])
 
+    def scout(self, leader):
+        scout = self._zmq.socket(zmq.REQ)
+        scout.connect("tcp://{}:{}".format(leader, self.greeter_port))
+        scout.send('HELLO')
+        with Timeout(2,	False):
+            response = scout.recv_multipart()
+        scount.close()
+        return reply
 
 class PeerClient(Service):
     def __init__(self, coordinator, _zmq):
@@ -83,17 +96,16 @@ class PeerClient(Service):
         self._following.set()
 
     def _confirm_leader(self, leader):
-        scout = self._zmq.socket(zmq.REQ)
-        scout.connect("tcp://{}:{}".format(leader, self.c.greeter_port))
-        scout.send('HELLO')
-        reply, redirect_address = scout.recv_multipart()
-        scout.close()
-        if reply == 'WELCOME':
-            return leader_address
-        elif reply == 'REDIRECT':
-            return self._confirm_leader(redirect_address)
-        else:
-            raise Exception("Unable to confirm leader")
+        response = self.c.scout(leader)
+        if len(response):
+            reply, redirect_address = response
+            if reply == 'WELCOME':
+                return leader
+            elif reply == 'REDIRECT':
+                return self._confirm_leader(redirect_address)
+            elif reply == 'RETRY':
+                return self._confirm_leader(leader)
+        raise Exception("Unable to confirm leader")
 
     def _next_leader(self):
         self._following.clear()
