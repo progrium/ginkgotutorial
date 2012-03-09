@@ -8,6 +8,7 @@ from ginkgo.config import Setting
 
 from ..util import ObservableSet
 
+
 class Subscription(gevent.queue.Queue):
     def __init__(self, receiver, channel):
         super(Subscription, self).__init__(maxsize=64)
@@ -18,6 +19,7 @@ class Subscription(gevent.queue.Queue):
     def cancel(self):
         self.receiver.unsubscribe(self.channel, self)
         self.channel = None
+
 
 class MessageBackend(Service):
     port = Setting('backend_port', default=2222)
@@ -38,6 +40,7 @@ class MessageBackend(Service):
     def subscribe(self, channel):
         return Subscription(self.receiver, channel)
 
+
 class PeerTransmitter(Service):
     def __init__(self, backend):
         self.cluster = backend.cluster
@@ -57,6 +60,7 @@ class PeerTransmitter(Service):
     @require_ready
     def broadcast(self, channel, message):
         self.socket.send_multipart([str(channel).lower(), msgpack.packb(message)])
+
 
 class PeerReceiver(Service):
     def __init__(self, backend, bind_interface=None):
