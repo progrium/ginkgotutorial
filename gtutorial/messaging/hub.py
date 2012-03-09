@@ -3,6 +3,7 @@ from ginkgo.core import Service, autospawn
 
 from .http import HttpStreamer
 from .http import HttpTailViewer
+from .websocket import WebSocketStreamer
 
 class Subscription(gevent.queue.Queue):
     def __init__(self, channel):
@@ -18,6 +19,7 @@ class MessageHub(Service):
 
         self.add_service(HttpStreamer(self))
         self.add_service(HttpTailViewer(self))
+        self.add_service(WebSocketStreamer(self))
 
     def publish(self, channel, message):
         for subscription in self.subscriptions.get(channel, []):
