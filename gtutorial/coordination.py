@@ -5,7 +5,7 @@ from gevent.event import Event
 from gevent_zeromq import zmq
 
 from ginkgo.core import Service, autospawn
-from ginkgo.config import Setting
+from ginkgo import Setting
 
 class Leadership(Service):
     port = Setting('leader_port', default=12345)

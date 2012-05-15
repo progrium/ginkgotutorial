@@ -2,7 +2,7 @@ import gevent
 import logging
 
 from ginkgo.core import Service, autospawn
-from ginkgo.config import Setting
+from ginkgo import Setting
 
 from ws4py.server.geventserver import WebSocketServer
 

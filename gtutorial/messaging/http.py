@@ -10,7 +10,7 @@ import gevent.queue
 import webob
 
 from ginkgo.core import Service, autospawn
-from ginkgo.config import Setting
+from ginkgo import Setting
 
 logger = logging.getLogger(__name__)
 

@@ -3,7 +3,7 @@ import logging
 import gevent
 
 from ginkgo.core import Service, autospawn
-from ginkgo.config import Setting
+from ginkgo import Setting
 
 from .numbers import NumberClient
 from .messaging.hub import MessageHub
