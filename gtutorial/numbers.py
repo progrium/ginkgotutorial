@@ -8,7 +8,7 @@ from gevent.queue import Queue
 from gevent.socket import create_connection
 
 from ginkgo.core import Service, autospawn
-from ginkgo.config import Setting
+from ginkgo import Setting
 
 logger = logging.getLogger(__name__)
 

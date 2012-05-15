@@ -4,7 +4,7 @@ import msgpack
 from gevent_zeromq import zmq
 
 from ginkgo.core import Service, require_ready, autospawn
-from ginkgo.config import Setting
+from ginkgo import Setting
 
 from ..util import ObservableSet
 

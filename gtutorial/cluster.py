@@ -9,7 +9,7 @@ from gevent.event import Event
 from gevent_zeromq import zmq
 
 from ginkgo.core import Service, autospawn, NOT_READY
-from ginkgo.config import Setting
+from ginkgo import Setting
 from ginkgo import util
 
 from .util import ObservableSet
